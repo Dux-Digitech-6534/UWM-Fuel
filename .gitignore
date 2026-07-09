@@ -1,0 +1,24 @@
+# ---- dependencies / build artifacts ----
+node_modules/
+dist/
+.gradle/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/app/release/
+*.log
+
+# ---- SECRETS — never commit (signing key + passwords) ----
+*.keystore
+uwm-fuel-release.keystore
+keystore.properties
+android/keystore.properties
+android/app/keystore.properties
+handoff.txt
+
+# ---- misc ----
+.DS_Store
+.idea/
+.vscode/
+*.iml

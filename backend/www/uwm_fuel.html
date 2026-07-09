@@ -1,0 +1,20 @@
+<!-- waste_management_ujjain/www/uwm_fuel.html
+     Host page for the UWM Fuel SPA. The thin-shell APK loads this URL
+     (/waste_management_ujjain/m). Assets are the fixed-name index.js / index.css
+     built by the app; the ?v= query is bumped on each deploy to bust the cache
+     so over-the-air updates take effect without rebuilding the APK. -->
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#5C4DE6" />
+  <title>UWM Fuel</title>
+  <script>window.__UWM_BUILD="__V__";</script>
+  <link rel="stylesheet" href="/assets/waste_management_ujjain/frontend/index.css?v=__V__" />
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/assets/waste_management_ujjain/frontend/index.js?v=__V__"></script>
+</body>
+</html>
