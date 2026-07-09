@@ -210,6 +210,21 @@ def _guard_read(dt):
         frappe.throw(_("Not permitted to read {0}").format(dt), frappe.PermissionError)
 
 
+def _link_file(file_url, dt, dn):
+    """Attach an uploaded private File to its parent Fuel document. Frappe then
+    grants the file to any user who can READ that document — so proofs/invoices
+    stay PRIVATE but open for authorised users (not just the uploader/admin)."""
+    if not file_url:
+        return
+    fname = frappe.db.get_value("File", {"file_url": file_url}, "name")
+    if fname:
+        frappe.db.set_value(
+            "File", fname,
+            {"attached_to_doctype": dt, "attached_to_name": dn},
+            update_modified=False,
+        )
+
+
 @frappe.whitelist()
 def last_purchase_rate(vendor, item):
     """Most recent purchase rate for a supplier+item, so the Fuel for Stock form can
@@ -386,6 +401,10 @@ def create_fuel_stock(data):
     # controller's after_insert() creates the Purchase Receipt + Purchase Invoice
     doc.insert()
 
+    # link uploaded proofs to this doc so authorised readers can open them (private)
+    _link_file(doc.get("upload_invoice__invoice_copy"), STOCK_DT, doc.name)
+    _link_file(doc.get("upload_fuel_station_proof__fuel_station_receipt"), STOCK_DT, doc.name)
+
     doc.reload()
     return {
         "name": doc.name,
@@ -446,6 +465,11 @@ def create_fuel_distribution(data):
     # then its after_insert() creates the submitted Stock Entry.
     doc.total_fuel_issued = total
     doc.insert()
+
+    # link uploaded proofs (main attachment + each vehicle-row proof) to this doc
+    _link_file(doc.get("attachment"), DIST_DT, doc.name)
+    for row in doc.get("vehicle_details") or []:
+        _link_file(row.get(CHILD_PROOF), DIST_DT, doc.name)
 
     doc.reload()
     return {
