@@ -22,11 +22,11 @@ export default function StockForm() {
     quantity_ffs: '',
     rateltr_ffs: '',
     bill_number: '',
-    upload_invoice__invoice_copy: '',
-    upload_fuel_station_proof__fuel_station_receipt: '',
     remarks: '',
   })
   const set = (k: keyof typeof f) => (v: string) => setF((p) => ({ ...p, [k]: v }))
+  const [invoiceUrls, setInvoiceUrls] = useState<string[]>([])
+  const [stationUrls, setStationUrls] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
@@ -50,7 +50,7 @@ export default function StockForm() {
     if (!f.item) return setErr('Select a fuel item.')
     if (qty <= 0) return setErr('Enter a quantity greater than 0.')
     if (rate <= 0) return setErr('Enter a rate greater than 0.')
-    if (!f.upload_invoice__invoice_copy) return setErr('Invoice copy is required.')
+    if (invoiceUrls.length === 0) return setErr('Invoice copy is required.')
     setBusy(true)
     try {
       const res = await api.createFuelStock({
@@ -62,8 +62,9 @@ export default function StockForm() {
         warehouse: boot?.default_warehouse,
         company: boot?.company,
         bill_number: f.bill_number,
-        upload_invoice__invoice_copy: f.upload_invoice__invoice_copy,
-        upload_fuel_station_proof__fuel_station_receipt: f.upload_fuel_station_proof__fuel_station_receipt,
+        upload_invoice__invoice_copy: invoiceUrls[0] || '',
+        upload_fuel_station_proof__fuel_station_receipt: stationUrls[0] || '',
+        all_files: [...invoiceUrls, ...stationUrls],
         remarks: f.remarks,
       })
       const refs = [res.purchase_receipt_ref, res.purchase_invoice_ref].filter(Boolean).join(' · ')
@@ -120,15 +121,13 @@ export default function StockForm() {
         <div className="formcard">
           <div className="fsec"><Icon name="receipt" size={13} />Proof & references</div>
           <Field label="Invoice copy" req>
-            <Attach label="Upload invoice (required)" value={f.upload_invoice__invoice_copy}
-              onChange={set('upload_invoice__invoice_copy')} required capture />
+            <Attach label="Upload invoice (required)" value={invoiceUrls} onChange={setInvoiceUrls} required />
           </Field>
           <Field label="Bill number">
             <input className="ctrl" value={f.bill_number} onChange={(e) => set('bill_number')(e.target.value)} placeholder="Optional" />
           </Field>
           <Field label="Fuel station receipt">
-            <Attach label="Upload fuel station proof" value={f.upload_fuel_station_proof__fuel_station_receipt}
-              onChange={set('upload_fuel_station_proof__fuel_station_receipt')} capture />
+            <Attach label="Upload fuel station proof" value={stationUrls} onChange={setStationUrls} />
           </Field>
           <Field label="Remarks">
             <textarea className="ctrl" value={f.remarks} onChange={(e) => set('remarks')(e.target.value)} placeholder="Optional notes" />

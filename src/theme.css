@@ -125,6 +125,8 @@ textarea.ctrl{height:auto;min-height:66px;padding:11px 13px;resize:none;line-hei
 .attach .fn{font-size:12.5px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .attach input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
 .attach.req-flag{border-color:var(--err)}
+.attach-del{margin-left:auto;width:26px;height:26px;border:none;background:transparent;color:var(--fg-4);display:flex;align-items:center;justify-content:center;border-radius:7px;cursor:pointer;flex:0 0 auto}
+.attach-del:hover{color:var(--err);background:var(--err-bg)}
 
 /* searchable link dropdown */
 .lslot{position:relative}

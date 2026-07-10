@@ -10,8 +10,8 @@ import Attach from '../components/Attach'
 import { todayKolkata, lt } from '../format'
 import * as api from '../api'
 
-type Row = { vehicle: string; odometer_reading: string; fuel_issued: string; upload_proof: string }
-const emptyRow = (): Row => ({ vehicle: '', odometer_reading: '', fuel_issued: '', upload_proof: '' })
+type Row = { vehicle: string; odometer_reading: string; fuel_issued: string; proofs: string[] }
+const emptyRow = (): Row => ({ vehicle: '', odometer_reading: '', fuel_issued: '', proofs: [] })
 
 export default function DistForm() {
   const { boot, refreshBoot } = useAuth()
@@ -21,7 +21,7 @@ export default function DistForm() {
   const [date, setDate] = useState(todayKolkata())
   const [fuelType, setFuelType] = useState('Diesel')
   const [rows, setRows] = useState<Row[]>([emptyRow()])
-  const [attachment, setAttachment] = useState('')
+  const [attachmentUrls, setAttachmentUrls] = useState<string[]>([])
   const [remarks, setRemarks] = useState('')
   const [avail, setAvail] = useState<number | null>(boot?.stock_summary.available_stock ?? null)
   const [busy, setBusy] = useState(false)
@@ -37,8 +37,10 @@ export default function DistForm() {
   const total = rows.reduce((s, r) => s + (parseFloat(r.fuel_issued) || 0), 0)
   const over = avail != null && total > avail
 
-  const setRow = (i: number, k: keyof Row) => (v: string) =>
+  const setRow = (i: number, k: 'vehicle' | 'odometer_reading' | 'fuel_issued') => (v: string) =>
     setRows((p) => p.map((r, idx) => (idx === i ? { ...r, [k]: v } : r)))
+  const setRowProofs = (i: number) => (urls: string[]) =>
+    setRows((p) => p.map((r, idx) => (idx === i ? { ...r, proofs: urls } : r)))
 
   async function save() {
     setErr('')
@@ -50,15 +52,17 @@ export default function DistForm() {
     if (new Set(picked).size !== picked.length) return setErr('Same vehicle selected more than once. Each vehicle can be added only once.')
     setBusy(true)
     try {
+      const allFiles = [...attachmentUrls, ...rows.flatMap((r) => r.proofs)]
       const res = await api.createFuelDistribution({
         date, fuel_type: fuelType,
         warehouse: boot?.default_warehouse, company: boot?.company,
-        attachment, remarks,
+        attachment: attachmentUrls[0] || '', remarks,
+        all_files: allFiles,
         vehicle_details: rows.map((r) => ({
           vehicle: r.vehicle,
           odometer_reading: parseFloat(r.odometer_reading) || 0,
           fuel_issued: parseFloat(r.fuel_issued) || 0,
-          upload_proof: r.upload_proof,
+          upload_proof: r.proofs[0] || '',
         })),
       })
       toast({ msg: 'Distribution saved', id: res.name + (res.stock_entry_reference ? '  →  ' + res.stock_entry_reference : '') })
@@ -120,7 +124,7 @@ export default function DistForm() {
                     onChange={(e) => setRow(i, 'fuel_issued')(e.target.value)} placeholder="0.00" />
                 </Field>
               </div>
-              <Attach label="Attach proof…" value={r.upload_proof} onChange={setRow(i, 'upload_proof')} capture />
+              <Attach label="Attach proof (one or more)…" value={r.proofs} onChange={setRowProofs(i)} />
             </div>
           ))}
           <button className="addrow" onClick={() => setRows((p) => [...p, emptyRow()])}>
@@ -137,7 +141,7 @@ export default function DistForm() {
         <div className="formcard">
           <div className="fsec"><Icon name="receipt" size={13} />Attachment & notes</div>
           <Field label="Main attachment">
-            <Attach label="Attach document…" value={attachment} onChange={setAttachment} capture />
+            <Attach label="Attach document(s)…" value={attachmentUrls} onChange={setAttachmentUrls} />
           </Field>
           <Field label="Remarks">
             <textarea className="ctrl" value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Optional notes" />

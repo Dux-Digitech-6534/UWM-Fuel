@@ -401,9 +401,12 @@ def create_fuel_stock(data):
     # controller's after_insert() creates the Purchase Receipt + Purchase Invoice
     doc.insert()
 
-    # link uploaded proofs to this doc so authorised readers can open them (private)
+    # link uploaded proofs to this doc so authorised readers can open them (private).
+    # all_files covers multiple attachments per field (the doctype field holds one).
     _link_file(doc.get("upload_invoice__invoice_copy"), STOCK_DT, doc.name)
     _link_file(doc.get("upload_fuel_station_proof__fuel_station_receipt"), STOCK_DT, doc.name)
+    for u in (data.get("all_files") or []):
+        _link_file(u, STOCK_DT, doc.name)
 
     doc.reload()
     return {
@@ -466,10 +469,13 @@ def create_fuel_distribution(data):
     doc.total_fuel_issued = total
     doc.insert()
 
-    # link uploaded proofs (main attachment + each vehicle-row proof) to this doc
+    # link uploaded proofs (main attachment + each vehicle-row proof) to this doc.
+    # all_files covers multiple attachments per field (the doctype field holds one).
     _link_file(doc.get("attachment"), DIST_DT, doc.name)
     for row in doc.get("vehicle_details") or []:
         _link_file(row.get(CHILD_PROOF), DIST_DT, doc.name)
+    for u in (data.get("all_files") or []):
+        _link_file(u, DIST_DT, doc.name)
 
     doc.reload()
     return {
