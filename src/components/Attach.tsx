@@ -38,12 +38,20 @@ export default function Attach({ label, value, onChange, required }:
           </button>
         </div>
       ))}
-      <label className={'attach' + (required && value.length === 0 ? ' req-flag' : '')}>
-        <Icon name={busy ? 'refresh' : value.length ? 'plus' : 'file'} size={17} />
-        <span className="fn">{busy ? 'Uploading…' : value.length ? 'Add more…' : label}</span>
-        <input type="file" accept="image/*,application/pdf" multiple
-          onChange={(e) => { if (e.target.files && e.target.files.length) pick(e.target.files); e.currentTarget.value = '' }} />
-      </label>
+      <div className="attach-actions">
+        <label className={'attach' + (required && value.length === 0 ? ' req-flag' : '')}>
+          <Icon name={busy ? 'refresh' : 'upload'} size={17} />
+          <span className="fn">{busy ? 'Uploading…' : value.length ? 'Upload more' : label}</span>
+          <input type="file" accept="image/*,application/pdf" multiple
+            onChange={(e) => { if (e.target.files && e.target.files.length) pick(e.target.files); e.currentTarget.value = '' }} />
+        </label>
+        <label className="attach cam">
+          <Icon name="camera" size={17} />
+          <span className="fn">Camera</span>
+          <input type="file" accept="image/*" capture="environment"
+            onChange={(e) => { if (e.target.files && e.target.files.length) pick(e.target.files); e.currentTarget.value = '' }} />
+        </label>
+      </div>
       {err && <div className="hint err">{err}</div>}
     </div>
   )

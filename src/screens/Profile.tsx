@@ -3,7 +3,7 @@ import { useAuth } from '../auth'
 import { Icon } from '../icons'
 import { AppBar, Powered } from '../components/ui'
 
-const APP_VERSION = '2.1.4'
+const APP_VERSION = '2.1.5'
 
 export default function Profile() {
   const { boot, logout } = useAuth()

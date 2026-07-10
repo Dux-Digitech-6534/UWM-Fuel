@@ -127,6 +127,11 @@ textarea.ctrl{height:auto;min-height:66px;padding:11px 13px;resize:none;line-hei
 .attach.req-flag{border-color:var(--err)}
 .attach-del{margin-left:auto;width:26px;height:26px;border:none;background:transparent;color:var(--fg-4);display:flex;align-items:center;justify-content:center;border-radius:7px;cursor:pointer;flex:0 0 auto}
 .attach-del:hover{color:var(--err);background:var(--err-bg)}
+.attach-actions{display:flex;gap:8px}
+.attach-actions .attach{flex:1;min-width:0}
+.attach-actions .attach.cam{flex:0 0 auto;width:auto;justify-content:center;gap:7px;color:var(--iris);border-color:var(--hairline-2)}
+.attach-actions .attach.cam .fn{flex:0 0 auto}
+.attach-actions .attach.cam:hover{border-color:var(--iris);background:var(--iris-tint)}
 
 /* searchable link dropdown */
 .lslot{position:relative}
