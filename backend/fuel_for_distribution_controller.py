@@ -106,6 +106,26 @@ class FuelforDistribution(Document):
     # (approval_status == "Approved"). A Draft / Pending Approval entry never
     # moves stock. Works for both Desk and the mobile approval flow.
     # =====================================================
+    def validate(self):
+        # Approval can be done from the mobile app OR here in Desk. Guard it:
+        #  - only a Fuel Final Approver (or System Manager) may set "Approved"
+        #  - stamp approved_by / approved_on automatically
+        #  - once Approved, the entry is locked (no further edits)
+        old = self.get_doc_before_save()
+        old_status = old.approval_status if old else None
+
+        if old_status == "Approved":
+            frappe.throw("This entry is approved and locked — it cannot be edited.")
+
+        if self.approval_status == "Approved" and old_status != "Approved":
+            roles = frappe.get_roles()
+            if "Fuel Final Approver" not in roles and "System Manager" not in roles:
+                frappe.throw("Only a Fuel Final Approver can approve this entry.")
+            if not self.approved_by:
+                self.approved_by = frappe.session.user
+            if not self.approved_on:
+                self.approved_on = frappe.utils.now_datetime()
+
     def after_insert(self):
         self._create_stock_entry_if_approved()
 
