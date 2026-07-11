@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { useToast } from '../toast'
 import { Icon } from '../icons'
@@ -17,6 +17,8 @@ export default function DistForm() {
   const { boot, refreshBoot } = useAuth()
   const nav = useNavigate()
   const toast = useToast()
+  const { name } = useParams()          // present => editing an existing draft/pending
+  const editing = !!name
 
   const [date, setDate] = useState(todayKolkata())
   const [fuelType, setFuelType] = useState('Diesel')
@@ -26,6 +28,26 @@ export default function DistForm() {
   const [avail, setAvail] = useState<number | null>(boot?.stock_summary.available_stock ?? null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [loading, setLoading] = useState(editing)
+
+  // load existing entry when editing
+  useEffect(() => {
+    if (!name) return
+    let alive = true
+    api.getFuelDistribution(name).then((d: any) => {
+      if (!alive || !d) return
+      setDate((d.date || todayKolkata()).slice(0, 10))
+      setFuelType(d.fuel_type || 'Diesel')
+      setAttachmentUrls(d.attachment ? [d.attachment] : [])
+      setRemarks(d.remarks || '')
+      const vr = (d.vehicle_details || []).map((r: any) => ({
+        vehicle: r.vehicle_details || '', odometer_reading: String(r.odometer_reading || ''),
+        fuel_issued: String(r.fuel_issued || ''), proofs: r.upload_proof ? [r.upload_proof] : [],
+      }))
+      setRows(vr.length ? vr : [emptyRow()])
+    }).catch((e: any) => setErr(e?.message || 'Could not load')).finally(() => { if (alive) setLoading(false) })
+    return () => { alive = false }
+  }, [name])
 
   useEffect(() => {
     if (!fuelType) return
@@ -52,22 +74,24 @@ export default function DistForm() {
     if (new Set(picked).size !== picked.length) return setErr('Same vehicle selected more than once. Each vehicle can be added only once.')
     setBusy(true)
     try {
-      const allFiles = [...attachmentUrls, ...rows.flatMap((r) => r.proofs)]
-      const res = await api.createFuelDistribution({
+      const payload = {
         date, fuel_type: fuelType,
         warehouse: boot?.default_warehouse, company: boot?.company,
         attachment: attachmentUrls[0] || '', remarks,
-        all_files: allFiles,
+        all_files: [...attachmentUrls, ...rows.flatMap((r) => r.proofs)],
         vehicle_details: rows.map((r) => ({
           vehicle: r.vehicle,
           odometer_reading: parseFloat(r.odometer_reading) || 0,
           fuel_issued: parseFloat(r.fuel_issued) || 0,
           upload_proof: r.proofs[0] || '',
         })),
-      })
-      toast({ msg: 'Distribution saved', id: res.name + (res.stock_entry_reference ? '  →  ' + res.stock_entry_reference : '') })
+      }
+      const res = editing
+        ? await api.updateFuelDistribution(name!, payload)
+        : await api.createFuelDistribution(payload)
+      toast({ msg: editing ? 'Draft updated' : 'Draft saved', id: res.name })
       await refreshBoot()
-      nav('/dist', { replace: true })
+      nav('/dist/view/' + res.name, { replace: true })   // detail: submit / approve from there
     } catch (e: any) {
       setErr(e?.message || 'Could not save.')
     } finally { setBusy(false) }
@@ -75,9 +99,10 @@ export default function DistForm() {
 
   return (
     <>
-      <SubHead title="New Distribution" sub="Fuel for Distribution" onBack={() => nav('/dist')} />
+      <SubHead title={editing ? 'Edit Distribution' : 'New Distribution'} sub="Fuel for Distribution" onBack={() => nav('/dist')} />
       <div className="body">
         {err && <div className="banner"><Icon name="alert" size={16} />{err}</div>}
+        {loading && <div className="loading"><div className="spin" />Loading…</div>}
 
         <div className="formcard accent">
           <div className="fsec"><Icon name="box" size={13} />Stock details</div>
@@ -152,7 +177,7 @@ export default function DistForm() {
       <div className="savebar">
         <button className="btn ghost" onClick={() => nav('/dist')} aria-label="Cancel"><Icon name="close" size={19} /></button>
         <button className="btn primary" onClick={save} disabled={busy || total <= 0 || over}>
-          {busy ? 'Saving…' : <><Icon name="check" size={18} />Save distribution</>}
+          {busy ? 'Saving…' : <><Icon name="check" size={18} />Save draft</>}
         </button>
       </div>
     </>

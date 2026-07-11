@@ -19,6 +19,7 @@ from frappe import _
 STOCK_DT = "Fuel for Stock"
 DIST_DT = "Fuel for Distribution"
 CHILD_DT = "Fuel Distrubution Items"           # (sic) exact spelling on the site
+FINAL_APPROVER_ROLE = "Fuel Final Approver"    # only this role may approve a distribution
 
 FUEL_ITEM_GROUP = "Fuel"                        # Diesel / Petrol live here
 FUEL_SUPPLIER_GROUP = "Fuel Supplier"           # Desk JS filters vendor_name on this
@@ -40,6 +41,10 @@ CHILD_PROOF = "upload_proof"
 def _require_login():
     if frappe.session.user == "Guest":
         frappe.throw(_("Please sign in to continue."), frappe.AuthenticationError)
+
+
+def _is_final_approver():
+    return FINAL_APPROVER_ROLE in frappe.get_roles()
 
 
 def _to_float(v):
@@ -124,6 +129,7 @@ def get_boot_data():
         "permissions": {"fuel_for_stock": stock_perm, "fuel_for_distribution": dist_perm},
         "can_use": stock_perm["read"] or dist_perm["read"]
         or stock_perm["create"] or dist_perm["create"],
+        "is_fuel_final_approver": _is_final_approver(),
         "stock_summary": {
             "fuel_type": "Diesel",
             "warehouse": DEFAULT_WAREHOUSE,
@@ -322,7 +328,7 @@ def list_fuel_distribution(limit=20, start=0, txt=""):
     rows = frappe.get_list(
         DIST_DT, or_filters=or_filters,
         fields=["name", "date", "fuel_type", "warehouse", "total_fuel_issued",
-                "stock_entry_reference", "docstatus", "modified"],
+                "stock_entry_reference", "approval_status", "docstatus", "modified"],
         order_by="modified desc",
         limit_start=int(start), limit_page_length=int(limit),
     )
@@ -331,6 +337,7 @@ def list_fuel_distribution(limit=20, start=0, txt=""):
             "name": r.name, "date": str(r.date or ""), "fuel_type": r.fuel_type,
             "warehouse": r.warehouse, "total_issued": _to_float(r.total_fuel_issued),
             "stock_entry_reference": r.stock_entry_reference,
+            "approval_status": r.approval_status or "Draft",
             "docstatus": r.docstatus, "modified": str(r.modified),
         }
         for r in rows
@@ -464,9 +471,9 @@ def create_fuel_distribution(data):
     # does not run for API inserts.
     doc.available_stock = str(round(avail, 2)) if avail is not None else None
 
-    # the Distribution controller REQUIRES total_fuel_issued to be set before insert,
-    # then its after_insert() creates the submitted Stock Entry.
     doc.total_fuel_issued = total
+    # NEW FLOW: create as Draft. Stock Entry is NOT created now — only on approval.
+    doc.approval_status = "Draft"
     doc.insert()
 
     # link uploaded proofs (main attachment + each vehicle-row proof) to this doc.
@@ -482,8 +489,108 @@ def create_fuel_distribution(data):
         "name": doc.name,
         "total_fuel_issued": _to_float(doc.get("total_fuel_issued")) or total,
         "stock_entry_reference": doc.get("stock_entry_reference"),
+        "approval_status": doc.get("approval_status") or "Draft",
         "docstatus": doc.docstatus,
     }
+
+
+# ---- Distribution: edit a Draft (creator) or a Pending entry (final approver) --
+def _apply_dist_fields(doc, data):
+    """Set parent fields + rebuild vehicle rows from payload; returns total issued."""
+    doc.date = data.get("date") or doc.date
+    if data.get("fuel_type"):
+        doc.fuel_type = data.get("fuel_type")
+    doc.warehouse = data.get("warehouse") or doc.warehouse or DEFAULT_WAREHOUSE
+    doc.company = data.get("company") or doc.company or DEFAULT_COMPANY
+    if "attachment" in data:
+        doc.attachment = data.get("attachment")
+    if "remarks" in data:
+        doc.remarks = data.get("remarks")
+
+    doc.set("vehicle_details", [])
+    total = 0.0
+    for row in (data.get("vehicle_details") or []):
+        issued = _to_float(row.get("fuel_issued"))
+        total += issued
+        doc.append("vehicle_details", {
+            CHILD_VEHICLE: row.get("vehicle") or row.get("vehicle_details"),
+            CHILD_ISSUED: issued,
+            CHILD_ODO: _to_float(row.get("odometer_reading")),
+            CHILD_PROOF: row.get("upload_proof"),
+        })
+    return total
+
+
+@frappe.whitelist()
+def update_fuel_distribution(name, data):
+    _require_login()
+    data = frappe.parse_json(data)
+    doc = frappe.get_doc(DIST_DT, name)
+    doc.check_permission("write")
+
+    status = doc.get("approval_status") or "Draft"
+    if status == "Approved":
+        frappe.throw(_("This entry is approved and can no longer be edited."))
+    if status == "Pending Approval" and not _is_final_approver():
+        frappe.throw(_("This entry is submitted for approval. Only a Fuel Final Approver can edit it."),
+                     frappe.PermissionError)
+
+    total = _apply_dist_fields(doc, data)
+    if total <= 0:
+        frappe.throw(_("Total fuel issued must be greater than 0."))
+    avail = _available_stock_qty(doc.fuel_type, doc.warehouse)
+    if avail is not None and total > avail:
+        frappe.throw(_("Total fuel issued ({0} L) exceeds available stock ({1} L).")
+                     .format(round(total, 2), round(avail, 2)))
+    doc.available_stock = str(round(avail, 2)) if avail is not None else None
+    doc.total_fuel_issued = total
+    doc.save()
+
+    _link_file(doc.get("attachment"), DIST_DT, doc.name)
+    for row in doc.get("vehicle_details") or []:
+        _link_file(row.get(CHILD_PROOF), DIST_DT, doc.name)
+    for u in (data.get("all_files") or []):
+        _link_file(u, DIST_DT, doc.name)
+
+    doc.reload()
+    return {"name": doc.name, "total_fuel_issued": _to_float(doc.get("total_fuel_issued")),
+            "approval_status": doc.get("approval_status") or "Draft"}
+
+
+@frappe.whitelist()
+def submit_fuel_distribution(name):
+    """Creator sends a Draft for approval (Draft -> Pending Approval). No stock yet."""
+    _require_login()
+    doc = frappe.get_doc(DIST_DT, name)
+    doc.check_permission("write")
+    status = doc.get("approval_status") or "Draft"
+    if status != "Draft":
+        frappe.throw(_("Only a draft entry can be submitted for approval."))
+    if not _to_float(doc.get("total_fuel_issued")) > 0:
+        frappe.throw(_("Add at least one vehicle before submitting."))
+    doc.approval_status = "Pending Approval"
+    doc.save()
+    return {"name": doc.name, "approval_status": "Pending Approval"}
+
+
+@frappe.whitelist()
+def approve_fuel_distribution(name):
+    """Fuel Final Approver approves (Pending -> Approved). This is what CREATES the
+    Stock Entry (stock is deducted only now)."""
+    _require_login()
+    if not _is_final_approver():
+        frappe.throw(_("Only a Fuel Final Approver can approve this entry."), frappe.PermissionError)
+    doc = frappe.get_doc(DIST_DT, name)
+    status = doc.get("approval_status") or "Draft"
+    if status != "Pending Approval":
+        frappe.throw(_("Only a submitted (pending approval) entry can be approved."))
+    doc.approval_status = "Approved"
+    doc.approved_by = frappe.session.user
+    doc.approved_on = frappe.utils.now_datetime()
+    doc.save(ignore_permissions=True)  # on_update -> controller creates the Stock Entry
+    doc.reload()
+    return {"name": doc.name, "approval_status": doc.get("approval_status"),
+            "stock_entry_reference": doc.get("stock_entry_reference")}
 
 
 # recent activity (used by boot + a possible Home refresh)

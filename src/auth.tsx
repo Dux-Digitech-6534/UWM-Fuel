@@ -14,6 +14,7 @@ export type Boot = {
     fuel_for_distribution: { read: boolean; create: boolean; write: boolean; delete: boolean }
   }
   can_use: boolean
+  is_fuel_final_approver: boolean
   stock_summary: { fuel_type: string; warehouse: string; available_stock: number | null; as_of: string }
   recent_activity: any[]
   csrf_token: string

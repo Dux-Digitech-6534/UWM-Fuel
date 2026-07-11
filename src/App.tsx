@@ -30,6 +30,7 @@ export default function App() {
           <Route path="/stock/view/:name" element={<Detail kind="stock" />} />
           <Route path="/dist" element={<DistList />} />
           <Route path="/dist/new" element={boot.permissions.fuel_for_distribution.create ? <DistForm /> : <Navigate to="/dist" replace />} />
+          <Route path="/dist/edit/:name" element={boot.permissions.fuel_for_distribution.write ? <DistForm /> : <Navigate to="/dist" replace />} />
           <Route path="/dist/view/:name" element={<Detail kind="dist" />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="*" element={<Navigate to="/home" replace />} />

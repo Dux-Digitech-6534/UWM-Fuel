@@ -120,5 +120,8 @@ export const getFuelStock = (name: string) => method('get_fuel_stock', { params:
 export const getFuelDistribution = (name: string) => method('get_fuel_distribution', { params: { name } })
 export const createFuelStock = (data: any) => method('create_fuel_stock', { isPost: true, data: { data } })
 export const createFuelDistribution = (data: any) => method('create_fuel_distribution', { isPost: true, data: { data } })
+export const updateFuelDistribution = (name: string, data: any) => method('update_fuel_distribution', { isPost: true, data: { name, data } })
+export const submitFuelDistribution = (name: string) => method('submit_fuel_distribution', { isPost: true, data: { name } })
+export const approveFuelDistribution = (name: string) => method('approve_fuel_distribution', { isPost: true, data: { name } })
 export const uploadFileB64 = (filename: string, data_b64: string) =>
   method('upload_file_b64', { isPost: true, data: { filename, data_b64, is_private: 1 } }) as Promise<{ file_url: string }>

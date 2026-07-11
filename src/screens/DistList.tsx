@@ -52,10 +52,15 @@ export default function DistList() {
                 <div className="kind out"><Icon name="truck" size={17} /></div>
                 <div className="mid">
                   <b>{r.name}</b>
-                  <div className="sub"><span>{r.fuel_type}</span>·<span>{r.warehouse}</span>·<span>{shortDate(r.date)}</span></div>
+                  <div className="sub"><span>{r.fuel_type}</span>·<span>{shortDate(r.date)}</span></div>
                 </div>
                 <div className="right">
                   <span className="amt out">{lt(r.total_issued)} L</span>
+                  {(() => {
+                    const st = r.approval_status || 'Draft'
+                    const cls = st === 'Approved' ? 'ok' : st === 'Pending Approval' ? 'info' : 'pending'
+                    return <span className={'tag ' + cls}><span className="dot" />{st === 'Pending Approval' ? 'Pending' : st}</span>
+                  })()}
                 </div>
               </button>
             ))}
